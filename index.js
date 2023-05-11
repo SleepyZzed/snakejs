@@ -2,7 +2,8 @@
 const canvas = document.getElementById('gameScreen');
 //context of canvas to draw on 
 const ctx = canvas.getContext('2d');
-
+ctx.imageSmoothingEnabled = false;
+ctx.scale(2, 2);
 class SnakePart{
     constructor(x, y){
     this.x = x
@@ -24,7 +25,7 @@ let headX = 10;
 let headY = 10;
 const snakeParts = [];
 let tailLength = 2;
-
+let angle = 0;
 
 //food x position 
 let foodX = 5;
@@ -39,7 +40,14 @@ let score = 0;
 
 const collectSound = new Audio('./assets/sounds/collect.mp3');
 const bgmusic = new Audio ('./assets/sounds/bg.mp3');
-
+const img = new Image();
+img.src = './assets/images/testHead.png';
+const foodimg = new Image();
+foodimg.src = './assets/images/food.png';
+const bodyImg = new Image();
+bodyImg.src = './assets/images/body.png';
+const tailImg = new Image();
+tailImg.src = './assets/images/tail.png';
 
 
 
@@ -72,7 +80,7 @@ function drawGame(){
     if(!(yVelocity === 0 && xVelocity === 0)){
         if (bgmusic.paused) {
             bgmusic.currentTime = 0;
-            bgmusic.volume = 0.5; // Set volume to 50%
+            bgmusic.volume = 0.3; // Set volume to 50%
             bgmusic.loop = true; // Set loop to true
             bgmusic.play();
             
@@ -90,13 +98,13 @@ function isGameOver(){
     if(headX < 0){
         gameOver = true;
     }
-    else if(headX >= tileCount * 2){
+    else if(headX >= tileCount){
         gameOver = true;
     }
     else if(headY < 0){
         gameOver = true;
     }
-    else if(headY >= tileCount * 2){
+    else if(headY >= tileCount){
         gameOver = true;
     }
 
@@ -119,7 +127,7 @@ function isGameOver(){
         }
         if (gameOver) {
           ctx.fillStyle = "white";
-          ctx.font = "100px Nunito";
+          ctx.font = "50px Nunito";
     
           var gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
           gradient.addColorStop("0", " magenta");
@@ -128,51 +136,121 @@ function isGameOver(){
           // Fill with gradient
           ctx.fillStyle = gradient;
     
-          ctx.fillText("Game Over!", canvas.width / 6.5, canvas.height / 2);
+          ctx.fillText("Game Over!", canvas.width / 12.5, canvas.height / 4);
         }
     
-        ctx.fillText("Game Over!", canvas.width / 6.5, canvas.height / 2);
+        ctx.fillText("Game Over!", canvas.width / 12.5, canvas.height / 4);
       }
     return gameOver;
     
 }
 
 function drawScore(){
-    ctx.fillStyle = 'white';
-    ctx.font = '20px Nunito';
-    ctx.fillText('Score: ' + score, canvas.width - 100, 20);
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 20px Nunito';
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 2;
+  ctx.strokeText('Score: ' + score, canvas.width / 2 - 100, 20);
+  ctx.fillText('Score: ' + score, canvas.width / 2 - 100, 20);
+  
 }
 //clears screen
 function clearScreen(){
-    ctx.fillStyle='black';
-    ctx.fillRect(0,0,canvas.width, canvas.height);
+
+  //scale factor for grid as canvas is scaled up by 2
+  const scaleFactor = 2;
+  const scaledWidth = canvas.width / scaleFactor;
+  const scaledHeight = canvas.height / scaleFactor;
+  const tileSize = 10;
+  const cellSize = tileSize * scaleFactor;
+  
+  const lightColor = '#95FFBD';
+  const darkColor = '#11492C';
+  
+  //checkerboard pattern
+  for (let i = 0; i < scaledHeight / cellSize; i++) {
+    for (let j = 0; j < scaledWidth / cellSize; j++) {
+      const x = j * cellSize;
+      const y = i * cellSize;
+      const color = (i + j) % 2 === 0 ? lightColor : darkColor;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, cellSize, cellSize);
+    }
+  }
+  
+
+
+    //ctx.fillStyle='black';
+    //ctx.fillRect(0,0,canvas.width, canvas.height);
 }
 //draws snake
-function drawSnake(){
-    
-
-    ctx.fillStyle = 'green';
-    for(let i =0; i < snakeParts.length; i++){
-        let part = snakeParts[i];
-        ctx.fillRect(part.x * tileCount, part.y * tileCount,tileSize, tileSize);
+function drawSnake() {
+  for (let i = 0; i < snakeParts.length; i++) {
+    let part = snakeParts[i];
+    ctx.save(); // save the current state of the context
+    ctx.translate((part.x + 0.5) * tileCount, (part.y + 0.5) * tileCount); // set the rotation point to the center of the part
+    let angle = 0;
+    if (i > 0) { // calculate the angle of rotation for all parts except the head
+      let prevPart = snakeParts[i-1];
+      if (part.x > prevPart.x) {
+        angle = Math.PI / 2; // rotate 90 degrees clockwise if moving right
+      } else if (part.x < prevPart.x) {
+        angle = -Math.PI / 2; // rotate 90 degrees counterclockwise if moving left
+      } else if (part.y > prevPart.y) {
+        angle = Math.PI; // rotate 180 degrees if moving down
+      }
+    } else { // calculate the angle of rotation for the head
+      if (xVelocity === 1) {
+        angle = Math.PI / 2; // rotate 90 degrees clockwise if moving right
+      } else if (xVelocity === -1) {
+        angle = -Math.PI / 2; // rotate 90 degrees counterclockwise if moving left
+      } else if (yVelocity === 1) {
+        angle = Math.PI; // rotate 180 degrees if moving down
+      }
     }
-    snakeParts.push(new SnakePart(headX, headY));
-    if(snakeParts.length > tailLength){
-        snakeParts.shift();
+    ctx.rotate(angle); // rotate the context by the calculated angle
+    if (i === 0) { // if it's the last part, use the tailImg
+      ctx.drawImage(tailImg, -tileSize / 2, -tileSize / 2, tileSize, tileSize);
+    } else {
+      ctx.drawImage(bodyImg, -tileSize / 2, -tileSize / 2, tileSize, tileSize);
     }
-    ctx.fillStyle = 'red';
-    ctx.fillRect(headX * tileCount, headY * tileCount, tileSize, tileSize);
+    ctx.restore(); // restore the previous state of the context
+  }
+  
+  snakeParts.push(new SnakePart(headX, headY));
+  if (snakeParts.length > tailLength) {
+    snakeParts.shift();
+  }
+  
+  ctx.save(); // save the current state of the context
+  ctx.translate((headX + 0.5) * tileCount, (headY + 0.5) * tileCount); // set the rotation point to the center of the head
+  let angle = 0;
+  if (xVelocity === 1) {
+    angle = Math.PI / 2; // rotate 90 degrees clockwise if moving right
+  } else if (xVelocity === -1) {
+    angle = -Math.PI / 2; // rotate 90 degrees counterclockwise if moving left
+  } else if (yVelocity === 1) {
+    angle = Math.PI; // rotate 180 degrees if moving down
+  }
+  ctx.rotate(angle); // rotate the context by the calculated angle
+  ctx.drawImage(img, -tileSize / 2, -tileSize / 2, tileSize, tileSize); // draw the head centered at the origin (which is now the center of the head)
+  ctx.restore(); // restore the previous state of the context
+  
 }
+
+
 //moves snake direction
 function changeSnakeDirection(){
     headX = headX + xVelocity;
     headY = headY + yVelocity;
     
+    
 }
 //draws the snake food
 function drawFood(){
-    ctx.fillStyle ='yellow';
-    ctx.fillRect(foodX * tileCount, foodY *tileCount, tileSize, tileSize);
+    //ctx.fillStyle ='yellow';
+    //ctx.fillRect(foodX * tileCount, foodY *tileCount, tileSize, tileSize);
+    ctx.drawImage(foodimg, foodX * tileCount, foodY *tileCount, tileSize, tileSize);
     
 }
 //checks the food collison
